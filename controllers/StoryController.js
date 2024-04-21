@@ -73,10 +73,19 @@ exports.getWeekStories = [
 	auth,
 	(req, res) => {
 		try {
-            const query = {
+			// Get the current date
+			const currentDate = new Date();
+
+			// Subtract 7 days from the current date
+			let pastDate = new Date(currentDate);
+			pastDate.setDate(currentDate.getDate() - 7);
+
+			console.log(currentDate, pastDate);
+
+			const query = {
                 createdAt: {
-                    $gte: new Date("2024-04-17"),
-                    $lt: new Date("2024-04-21")
+                    $lt: currentDate,
+                    $gte: pastDate
                 },
 				createdBy: ObjectId(req.user._id)
             };
