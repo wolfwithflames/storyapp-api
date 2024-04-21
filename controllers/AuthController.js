@@ -9,6 +9,8 @@ const jwt = require("jsonwebtoken");
 const mailer = require("../helpers/mailer");
 const { constants } = require("../helpers/constants");
 
+const auth = require("../middlewares/jwt");
+
 /**
  * User registration.
  *
@@ -97,59 +99,110 @@ exports.register = [
 /**
  * User login.
  *
- * @param {string}      email
- * @param {string}      password
+ * @param {string}      phone
  *
  * @returns {Object}
  */
 exports.login = [
-	body("email").isLength({ min: 1 }).trim().withMessage("Email must be specified.")
-		.isEmail().withMessage("Email must be a valid email address."),
-	body("password").isLength({ min: 1 }).trim().withMessage("Password must be specified."),
-	sanitizeBody("email").escape(),
-	sanitizeBody("password").escape(),
+	body("phone").isLength({ min: 1 }).trim().withMessage("Phone must be specified."),
+	sanitizeBody("phone").escape(),
 	(req, res) => {
 		try {
 			const errors = validationResult(req);
 			if (!errors.isEmpty()) {
 				return apiResponse.validationErrorWithData(res, "Validation Error.", errors.array());
 			}else {
-				UserModel.findOne({email : req.body.email}).then(user => {
-					if (user) {
-						//Compare given password with db's hash.
-						bcrypt.compare(req.body.password,user.password,function (err,same) {
-							if(same){
-								//Check account confirmation.
-								if(user.isConfirmed){
-									// Check User's account active or not.
-									if(user.status) {
-										let userData = {
-											_id: user._id,
-											firstName: user.firstName,
-											lastName: user.lastName,
-											email: user.email,
-										};
-										//Prepare JWT token for authentication
-										const jwtPayload = userData;
-										const jwtData = {
-											expiresIn: process.env.JWT_TIMEOUT_DURATION,
-										};
-										const secret = process.env.JWT_SECRET;
-										//Generated JWT token with Payload and secret.
-										userData.token = jwt.sign(jwtPayload, secret, jwtData);
-										return apiResponse.successResponseWithData(res,"Login Success.", userData);
-									}else {
-										return apiResponse.unauthorizedResponse(res, "Account is not active. Please contact admin.");
-									}
-								}else{
-									return apiResponse.unauthorizedResponse(res, "Account is not confirmed. Please confirm your account.");
-								}
-							}else{
-								return apiResponse.unauthorizedResponse(res, "Email or Password wrong.");
+				UserModel.findOne({phone : req.body.phone}).then(user => {
+					if (!user) {
+						user = new UserModel(
+							{
+								phone: req.body.phone,
 							}
+						);
+						user.isProfileCompleted = false;
+						user.save(function (err) {
+							if (err) { return apiResponse.ErrorResponse(res, err); }
 						});
+					}
+					if(user.status) {
+						user.isProfileCompleted = true;
+						if(!user.firstName){
+							user.isProfileCompleted = false;
+						}
+						let userData = {
+							_id: user._id,
+							firstName: user.firstName,
+							lastName: user.lastName,
+							email: user.email,
+							isProfileCompleted: user.isProfileCompleted
+						};
+						//Prepare JWT token for authentication
+						const jwtPayload = userData;
+						const jwtData = {
+							expiresIn: process.env.JWT_TIMEOUT_DURATION,
+						};
+						const secret = process.env.JWT_SECRET;
+						//Generated JWT token with Payload and secret.
+						userData.token = jwt.sign(jwtPayload, secret, jwtData);
+						return apiResponse.successResponseWithData(res,"Login Success.", userData);
+					}else {
+						return apiResponse.unauthorizedResponse(res, "Account is not active. Please contact admin.");
+					}
+				});
+			}
+		} catch (err) {
+			return apiResponse.ErrorResponse(res, err);
+		}
+	}];
+/**
+ * User login.
+ *
+ * @param {string}      phone
+ *
+ * @returns {Object}
+ */
+exports.updateProfile = [
+	auth,
+	body("firstName").isLength({ min: 1 }).trim().withMessage("First name must be specified.")
+		.isAlphanumeric().withMessage("First name has non-alphanumeric characters."),
+	body("lastName").isLength({ min: 1 }).trim().withMessage("Last name must be specified.")
+		.isAlphanumeric().withMessage("Last name has non-alphanumeric characters."),
+	sanitizeBody("firstName").escape(),
+	sanitizeBody("lastName").escape(),
+	(req, res) => {
+		try {
+			const errors = validationResult(req);
+			if (!errors.isEmpty()) {
+				console.log(errors);
+				return apiResponse.validationErrorWithData(res, "Validation Error.", errors.array());
+			}else {
+
+				var userData = new UserModel({ 	
+					firstName: req.body.firstName,
+					lastName: req.body.lastName,
+					_id:req.user._id
+				});
+				UserModel.findById(req.user._id, function (err, userModel) {
+					if(userModel === null){
+						return apiResponse.notFoundResponse(res,"Book not exists with this id");
 					}else{
-						return apiResponse.unauthorizedResponse(res, "Email or Password wrong.");
+
+						console.log(req.user._id);
+						console.log(userModel);
+						//Check authorized user
+						if(userModel._id != req.user._id){
+							return apiResponse.unauthorizedResponse(res, "You are not authorized to do this operation.");
+						}else{
+							//update book.
+							UserModel.findByIdAndUpdate(req.user._id, userData, {},function (err) {
+								if (err) { 
+									return apiResponse.ErrorResponse(res, err); 
+								}else{
+									let bookData = new UserModel(userData);
+									return apiResponse.successResponseWithData(res,"User update Success.", bookData);
+								}
+							});
+						}
 					}
 				});
 			}
