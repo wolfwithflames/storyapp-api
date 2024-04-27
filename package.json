@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "engines": {
-    "node": "20.12.2"
+    "node": "20.12.2",
+    "engineStrict" : true
   },
   "scripts": {
     "start": "node ./bin/www",
