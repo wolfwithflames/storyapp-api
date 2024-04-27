@@ -2,6 +2,9 @@
   "name": "rest-api-nodejs-mongodb",
   "version": "1.0.0",
   "private": true,
+  "engines": {
+    "node": "20.12.2"
+  },
   "scripts": {
     "start": "node ./bin/www",
     "dev": "nodemon ./bin/www",
