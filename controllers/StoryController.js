@@ -84,13 +84,13 @@ exports.getWeekStories = [
 
 			const query = {
                 createdAt: {
-                    $lt: currentDate,
+                    $lte: currentDate,
                     $gte: pastDate
                 },
 				createdBy: ObjectId(req.user._id)
             };
             const aggregation = [
-				{ $match: query },
+				{ $match: query },				
 				{
 					$group: {
 						_id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
@@ -113,6 +113,9 @@ exports.getWeekStories = [
 				},
 				{
 					$replaceRoot: { "newRoot": "$documents" }
+				},
+				{ 
+					$sort: { date: -1 } // Sorting by createdAt field in ascending order
 				}
 			];
 			
